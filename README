@@ -1,8 +1,6 @@
 Comm Audio
 
-A program to have multiple clients connect to a multicast group and listen to whatever music the server is playing. 
-Will also allow the clients to select songs from the servers list to queue. Clients will also be able to intiate
-a voice chat session with other clients.
+A program to have multiple clients connect to a multicast group and listen to whatever music the server is playing. Will also allow the clients to select songs from the servers list to queue. Clients will also be able to intiate a voice chat session with other clients.
 
 Also, karaoke?
 
