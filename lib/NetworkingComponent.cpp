@@ -15,11 +15,16 @@ static bool AssociateSocketCompletionPort(HANDLE hIoPort, SOCKET socket, DWORD c
 	return h == hIoPort;
 }
 
+NetworkingComponent::NetworkingComponent(AppType appType)
+	: appType_(appType) {}
+
 NetworkingComponent::~NetworkingComponent()
 {
 	leaveMulticastGroup();
 	closesocket(udpSocket_);
 	CloseHandle(hIoCp_);
+	CloseHandle(queueSem_);
+	DeleteCriticalSection(&mutex_);
 }
 
 bool NetworkingComponent::processTcp(SocketInformation *sockInfo, DWORD bytesTransferred)
@@ -30,9 +35,18 @@ bool NetworkingComponent::processTcp(SocketInformation *sockInfo, DWORD bytesTra
 	{
 		shutdown(sockInfo->socket, SD_BOTH);
 		closesocket(sockInfo->socket);
-		free(sockInfo);
+		delete sockInfo;
 		return true;
 	}
+
+	EnterCriticalSection(&mutex_);
+	WSABUF data;
+	data.buf = new char[bytesTransferred + 1];
+	data.len = bytesTransferred;
+	memcpy(data.buf, sockInfo->dataBuf.buf, bytesTransferred);
+	tcpDataQueue_.push(data);
+	ReleaseSemaphore(queueSem_, 1, NULL);
+	LeaveCriticalSection(&mutex_);
 
 	if (WSARecv(sockInfo->socket, &(sockInfo->dataBuf), 1, NULL, &flags, 
 		&(sockInfo->overlapped), NULL) == SOCKET_ERROR)
@@ -111,6 +125,86 @@ DWORD WINAPI NetworkingComponent::WorkerThread()
 	}
 }
 
+bool NetworkingComponent::activateIoCp(SOCKET sock, DWORD completionKey)
+{
+	if (!AssociateSocketCompletionPort(hIoCp_, sock, completionKey))
+		return false;
+
+	SocketInformation *sockInfo = new SocketInformation;
+	sockInfo->socket = sock;
+	memset(&(sockInfo->overlapped), 0, sizeof(sockInfo->overlapped));
+	sockInfo->dataBuf.len = UDPRECVBUF;
+	sockInfo->dataBuf.buf = sockInfo->buffer;
+	sockInfo->fromLen = sizeof(sockInfo->from);
+
+	DWORD flags = 0;
+	if (WSARecv(sockInfo->socket, &(sockInfo->dataBuf), 1, NULL, &flags, 
+		&(sockInfo->overlapped), NULL) == SOCKET_ERROR)
+	{
+		if (WSAGetLastError() != WSA_IO_PENDING)
+			return false;
+	}
+
+	return true;
+}
+
+bool NetworkingComponent::initializeUdp()
+{
+	if ((udpSocket_ = WSASocket(AF_INET, SOCK_DGRAM, 0, NULL, 0, WSA_FLAG_OVERLAPPED)) == INVALID_SOCKET)
+		return false;
+
+	BOOL reuse = TRUE;
+	if (setsockopt(udpSocket_, SOL_SOCKET, SO_REUSEADDR, (const char *) &reuse, sizeof(reuse)) == SOCKET_ERROR)
+		return false;
+
+	struct sockaddr_in addrInfo;
+	memset(&addrInfo, 0, sizeof(addrInfo));
+	addrInfo.sin_family = AF_INET;
+	addrInfo.sin_addr.s_addr = htonl(INADDR_ANY);
+	addrInfo.sin_port = htons(MULTICASTPORT);
+
+	if (bind(udpSocket_, (sockaddr *) &addrInfo, sizeof(addrInfo)) == SOCKET_ERROR)
+		return false;
+
+	// If this is client, associate socket with completion port so
+	// we can listen from it. If it is server, no need to associate 
+	// udp socket with completion port since we are not going to 
+	// receive any udp data in server
+	if (appType_ == CLIENT)
+	{
+		size_t len = UDPRECVBUF;
+		if (setsockopt(udpSocket_, SOL_SOCKET, SO_RCVBUF, (char *) &len, sizeof(len)) != 0)
+			return false;
+
+		if (!activateIoCp(udpSocket_, IOCP_UDP_READ))
+			return false;
+	}
+
+	return true;
+}
+
+bool NetworkingComponent::initializeTcp()
+{
+	if ((tcpSocket_ = WSASocket(AF_INET, SOCK_STREAM, 0, NULL, 0, WSA_FLAG_OVERLAPPED)) == INVALID_SOCKET)
+		return false;
+
+	if (appType_ == SERVER)
+	{
+		struct sockaddr_in server;
+		memset(&server, 0, sizeof(server));
+		server.sin_family = AF_INET;
+		server.sin_addr.s_addr = htonl(INADDR_ANY);
+		server.sin_port = htons(LISTENPORT);
+
+		if (bind(tcpSocket_, (struct sockaddr *) &server, sizeof(server)) == -1)
+			return false;
+
+		listen(tcpSocket_, 5);
+	}
+
+	return true;
+}
+
 bool NetworkingComponent::initialize()
 {
 	if ((hIoCp_ = CreateNewCompletionPort()) == NULL)
@@ -129,44 +223,13 @@ bool NetworkingComponent::initialize()
 	if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
 		return false;
 
-	if ((udpSocket_ = WSASocket(AF_INET, SOCK_DGRAM, 0, NULL, 0, WSA_FLAG_OVERLAPPED)) == INVALID_SOCKET)
+	queueSem_ = CreateSemaphore(NULL, 0, 50, NULL);
+	InitializeCriticalSection(&mutex_);
+
+	if (!initializeUdp())
 		return false;
 
-	BOOL reuse = TRUE;
-	if (setsockopt(udpSocket_, SOL_SOCKET, SO_REUSEADDR, (const char *) &reuse, sizeof(reuse)) == SOCKET_ERROR)
-		return false;
-
-	struct sockaddr_in addrInfo;
-	memset(&addrInfo, 0, sizeof(addrInfo));
-	addrInfo.sin_family = AF_INET;
-	addrInfo.sin_addr.s_addr = htonl(INADDR_ANY);
-	addrInfo.sin_port = htons(MULTICASTPORT);
-
-	if (bind(udpSocket_, (sockaddr *) &addrInfo, sizeof(addrInfo)) == SOCKET_ERROR)
-		return false;
-
-	SocketInformation *sockInfo = new SocketInformation;
-	memset(&(sockInfo->overlapped), 0, sizeof(sockInfo->overlapped));
-	sockInfo->socket = udpSocket_;
-	sockInfo->dataBuf.buf = sockInfo->buffer;
-	sockInfo->dataBuf.len = UDPRECVBUF;
-	sockInfo->fromLen = sizeof(sockInfo->from);
-
-	if (setsockopt(sockInfo->socket, SOL_SOCKET, SO_RCVBUF, (char *) &sockInfo->dataBuf.len, sizeof(sockInfo->dataBuf.len)) != 0)
-		return false;
-
-	if (!AssociateSocketCompletionPort(hIoCp_, udpSocket_, IOCP_UDP_READ))
-		return false;
-
-	DWORD flags = 0;
-	if (WSARecvFrom(sockInfo->socket, &(sockInfo->dataBuf), 1, NULL, &flags, 
-		(struct sockaddr *) &(sockInfo->from), &(sockInfo->fromLen), &(sockInfo->overlapped), NULL) == SOCKET_ERROR)
-	{
-		if (WSAGetLastError() != WSA_IO_PENDING)
-			return false;
-	}
-
-	return true;
+	return initializeTcp();
 }
 
 int NetworkingComponent::joinMulticastGroup()
@@ -199,10 +262,66 @@ int NetworkingComponent::sendMulticast(const char *buffer, size_t bufSize)
 	return sendto(udpSocket_, buffer, bufSize, 0, (struct sockaddr *) &dstAddr, sizeof(dstAddr));
 }
 
-int main()
+int NetworkingComponent::connectToServer(const std::string& ipAddress, unsigned short port)
 {
-	NetworkingComponent nc;
-	nc.initialize();
+	struct sockaddr_in server;
+	memset(&server, 0, sizeof(server));
+	server.sin_family = AF_INET;
+	server.sin_addr.s_addr = inet_addr(ipAddress.c_str());
+	server.sin_port = htons(port);
 
-	system("pause");
+	int ret = connect(tcpSocket_, (sockaddr *) &server, sizeof(server));
+
+	if (!activateIoCp(tcpSocket_, IOCP_TCP_READ))
+		return SOCKET_ERROR;
+
+	return ret;
+}
+
+int NetworkingComponent::sendData(const void *data, size_t dataSize)
+{
+	return send(tcpSocket_, (char *) data, dataSize, 0);
+}
+
+int NetworkingComponent::sendData(SOCKET sock, const void *data, size_t dataSize)
+{
+	return send(sock, (char *) data, dataSize, 0);
+}
+
+int NetworkingComponent::receiveData(WSABUF *buffer)
+{
+	WSABUF data;
+
+	WaitForSingleObject(queueSem_, INFINITE);
+	EnterCriticalSection(&mutex_);
+
+	if (!tcpDataQueue_.empty())
+	{
+		data = tcpDataQueue_.front();	
+		buffer->buf = data.buf;
+		buffer->len = data.len;
+		tcpDataQueue_.pop();
+	}
+
+	LeaveCriticalSection(&mutex_);
+	return data.len;
+}
+
+SOCKET NetworkingComponent::waitForClient()
+{
+	return waitForClient(std::string());
+}
+
+SOCKET NetworkingComponent::waitForClient(std::string& ipAddress)
+{
+	struct sockaddr_in clientInfo;
+	int clientSize = sizeof(clientInfo);
+
+	SOCKET client = accept(tcpSocket_, (sockaddr *) &clientInfo, &clientSize);
+	ipAddress = std::string(inet_ntoa(clientInfo.sin_addr));
+
+	if (!activateIoCp(client, IOCP_TCP_READ))
+		return INVALID_SOCKET;
+
+	return client;
 }
