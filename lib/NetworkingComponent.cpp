@@ -23,30 +23,20 @@ NetworkingComponent::~NetworkingComponent()
 	leaveMulticastGroup();
 	closesocket(udpSocket_);
 	CloseHandle(hIoCp_);
-	CloseHandle(queueSem_);
-	DeleteCriticalSection(&mutex_);
+	CloseHandle(tcpQueueSem_);
+	CloseHandle(udpQueueSem_);
+	DeleteCriticalSection(&tcpMutex_);
+	DeleteCriticalSection(&udpMutex_);
 }
 
-bool NetworkingComponent::processTcp(SocketInformation *sockInfo, DWORD bytesTransferred)
+bool NetworkingComponent::processTcp(SocketInformation *sockInfo, WSABUF *data)
 {
 	static DWORD flags = 0;
 
-	if (bytesTransferred == 0)
-	{
-		shutdown(sockInfo->socket, SD_BOTH);
-		closesocket(sockInfo->socket);
-		delete sockInfo;
-		return true;
-	}
-
-	EnterCriticalSection(&mutex_);
-	WSABUF data;
-	data.buf = new char[bytesTransferred + 1];
-	data.len = bytesTransferred;
-	memcpy(data.buf, sockInfo->dataBuf.buf, bytesTransferred);
-	tcpDataQueue_.push(data);
-	ReleaseSemaphore(queueSem_, 1, NULL);
-	LeaveCriticalSection(&mutex_);
+	EnterCriticalSection(&tcpMutex_);
+	tcpDataQueue_.push(*data);
+	ReleaseSemaphore(tcpQueueSem_, 1, NULL);
+	LeaveCriticalSection(&tcpMutex_);
 
 	if (WSARecv(sockInfo->socket, &(sockInfo->dataBuf), 1, NULL, &flags, 
 		&(sockInfo->overlapped), NULL) == SOCKET_ERROR)
@@ -61,9 +51,14 @@ bool NetworkingComponent::processTcp(SocketInformation *sockInfo, DWORD bytesTra
 	return true;
 }
 
-bool NetworkingComponent::processUdp(SocketInformation *sockInfo, DWORD bytesTransferred)
+bool NetworkingComponent::processUdp(SocketInformation *sockInfo, WSABUF *data)
 {
 	static DWORD flags = 0;
+
+	EnterCriticalSection(&udpMutex_);
+	udpDataQueue_.push(*data);
+	ReleaseSemaphore(udpQueueSem_, 1, NULL);
+	LeaveCriticalSection(&udpMutex_);
 
 	if (WSARecvFrom(sockInfo->socket, &(sockInfo->dataBuf), 1, NULL, &flags, 
 		(struct sockaddr *) &(sockInfo->from), &(sockInfo->fromLen), &(sockInfo->overlapped), NULL) == SOCKET_ERROR)
@@ -97,14 +92,19 @@ DWORD WINAPI NetworkingComponent::WorkerThread()
 		{
 			sockInfo = (SocketInformation *) overlap;
 
+			WSABUF data;
+			data.buf = new char[bytesTransferred + 1];
+			data.len = bytesTransferred;
+			memcpy(data.buf, sockInfo->dataBuf.buf, bytesTransferred);
+
 			switch(completionKey)
 			{
 			case IOCP_TCP_READ:
-				processTcp(sockInfo, bytesTransferred);
+				processTcp(sockInfo, &data);
 				break;
 
 			case IOCP_UDP_READ:
-				processUdp(sockInfo, bytesTransferred);
+				processUdp(sockInfo, &data);
 				break;
 			}
 		} 
@@ -223,8 +223,10 @@ bool NetworkingComponent::initialize()
 	if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
 		return false;
 
-	queueSem_ = CreateSemaphore(NULL, 0, 50, NULL);
-	InitializeCriticalSection(&mutex_);
+	tcpQueueSem_ = CreateSemaphore(NULL, 0, 50, NULL);
+	udpQueueSem_ = CreateSemaphore(NULL, 0, 50, NULL);
+	InitializeCriticalSection(&tcpMutex_);
+	InitializeCriticalSection(&udpMutex_);
 
 	if (!initializeUdp())
 		return false;
@@ -292,8 +294,8 @@ int NetworkingComponent::receiveData(WSABUF *buffer)
 {
 	WSABUF data;
 
-	WaitForSingleObject(queueSem_, INFINITE);
-	EnterCriticalSection(&mutex_);
+	WaitForSingleObject(tcpQueueSem_, INFINITE);
+	EnterCriticalSection(&tcpMutex_);
 
 	if (!tcpDataQueue_.empty())
 	{
@@ -303,7 +305,26 @@ int NetworkingComponent::receiveData(WSABUF *buffer)
 		tcpDataQueue_.pop();
 	}
 
-	LeaveCriticalSection(&mutex_);
+	LeaveCriticalSection(&tcpMutex_);
+	return data.len;
+}
+
+int NetworkingComponent::receiveMulticast(WSABUF *buffer)
+{
+	WSABUF data;
+
+	WaitForSingleObject(udpQueueSem_, INFINITE);
+	EnterCriticalSection(&udpMutex_);
+
+	if (!udpDataQueue_.empty())
+	{
+		data = udpDataQueue_.front();	
+		buffer->buf = data.buf;
+		buffer->len = data.len;
+		udpDataQueue_.pop();
+	}
+
+	LeaveCriticalSection(&udpMutex_);
 	return data.len;
 }
 
