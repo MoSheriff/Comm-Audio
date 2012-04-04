@@ -10,7 +10,7 @@
 class NetworkingComponent
 {
 public:
-	static const size_t POOLSIZE = 4;
+	static const size_t POOLSIZE = 8;
 	static const size_t UDPRECVBUF = 1024 * 1024;
 	static const unsigned short MULTICASTPORT = 45000;
 	static const unsigned short LISTENPORT = 63400;
@@ -24,6 +24,7 @@ public:
 	~NetworkingComponent();
 	bool initialize();
 	int sendMulticast(const char *buffer, size_t bufSize);
+	int receiveMulticast(WSABUF *buffer);
 	int joinMulticastGroup();
 	int leaveMulticastGroup();
 	int connectToServer(const std::string& ipAddress, unsigned short port);
@@ -52,13 +53,16 @@ private:
 	SOCKET tcpSocket_;
 	HANDLE hIoCp_;
 	AppType appType_;
-	HANDLE queueSem_;
-	CRITICAL_SECTION mutex_;
+	HANDLE tcpQueueSem_;
+	HANDLE udpQueueSem_;
+	CRITICAL_SECTION tcpMutex_;
+	CRITICAL_SECTION udpMutex_;
 	std::queue<WSABUF> tcpDataQueue_;
+	std::queue<WSABUF> udpDataQueue_;
 
 	DWORD WINAPI WorkerThread();
-	bool processTcp(SocketInformation *sockInfo, DWORD bytesTransferred);
-	bool processUdp(SocketInformation *sockInfo, DWORD bytesTransferred);
+	bool processTcp(SocketInformation *sockInfo, WSABUF *data);
+	bool processUdp(SocketInformation *sockInfo, WSABUF *data);
 	bool initializeUdp();
 	bool initializeTcp();
 	bool activateIoCp(SOCKET sock, DWORD completionKey);
