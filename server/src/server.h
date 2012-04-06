@@ -6,7 +6,7 @@
 #include <string>
 #include <list>
 #include <process.h>
-#include "NetworkingComponent.h"
+#include "../../lib/NetworkingComponent.h"
 #include "timer.h"
 using namespace std;
 
