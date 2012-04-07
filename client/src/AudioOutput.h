@@ -13,6 +13,8 @@
 #define BUFSIZE    1024
 #define BLOCK_COUNT 20
 
+#define EVER    (;;)
+
 typedef struct _globals
 {
     HWAVEOUT            waveOut;
@@ -23,7 +25,7 @@ typedef struct _globals
     WSABUF              buffer;
     CRITICAL_SECTION    countGuard;
     char                *titles;
-    NetworkingComponent* nc;
+    NetworkingComponent *nc;
 
 }GLOBALS, *PGLOBALS;
 

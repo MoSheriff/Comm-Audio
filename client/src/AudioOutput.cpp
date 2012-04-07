@@ -72,6 +72,7 @@ void AudioOutput::playAudio()
     }
 
     CreateThread(NULL, 0, AudioOutput::playProc, this, 0, NULL);
+    for EVER{}
 }
 
 
@@ -81,6 +82,8 @@ DWORD WINAPI AudioOutput::playProc(LPVOID lpParameter)
     
     AudioOutput *audio = (AudioOutput*)lpParameter;
     DWORD bytesRead;
+
+    audio->globals->nc->joinMulticastGroup();
         
     /* playback loop */
     while(1) 
@@ -175,14 +178,14 @@ void AudioOutput::cleanUp()
     DeleteCriticalSection(&(globals->countGuard));
     freeBlocks(globals->blocks);
     waveOutClose(globals->waveOut);
+    free(globals->titles);
+    free(globals->nc);
+    free(globals);
 }
 
 
 void AudioOutput::getHeaderData()
 {
-    /*after three way handshake, TCP message
-    will have header data.  read it into WAVEFORMATEX struct*/
-    
     globals->wfx.nSamplesPerSec = 44100; /*sample rate*/
     globals->wfx.wBitsPerSample = 16; /*sample size*/
     globals->wfx.nChannels= 2;  /*channels*/
