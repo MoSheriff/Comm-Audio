@@ -6,23 +6,24 @@
 #include <string>
 #include <list>
 #include <process.h>
-#include "../../lib/NetworkingComponent.h"
+#include "NetworkingComponent.h"
 #include "timer.h"
 using namespace std;
 
 #define songOneLocation string("01 Shine On You Crazy Diamond.wav")
-#define songTwoLocation string("02 Welcome to The Machine.wav")
+#define songTwoLocation string("02 Welcome To The Machine.wav")
 #define songThreeLocation string("04 Wish You Were Here.wav")
-#define READ_BUFFER_SIZE 8192
+#define READ_BUFFER_SIZE 1024
 #define NUM_OF_SONGS 3
 
-ifstream wavFile;
+//ifstream wavFile;
 char* fileName;
 char* songTitles[NUM_OF_SONGS];
 char fileBuf[READ_BUFFER_SIZE];
 int fileSize;
 int numFileChunks;
 WSABUF *recieveBuffer;
+HANDLE wavFile;
 HANDLE hPlaylistMutex = CreateMutex(NULL,FALSE,NULL);
 HANDLE hSendMusic = CreateMutex(NULL,FALSE,NULL);
 map<string,string> songList;
@@ -37,7 +38,7 @@ NetworkingComponent nc(NetworkingComponent::SERVER);
 
 void getFileSize(char* fileName);
 void initializeSonglist();
-void readFile();
+void openFile();
 void sendDataToClients();
 char* stringToCharStar(string temp);
 void NetworkProc (void *ID);

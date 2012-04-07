@@ -1,19 +1,19 @@
 #include "server.h"
 
 int main(int argc, char **argv) {
-	HANDLE one, two, three;
-	nc.initialize();	
 	initializeSonglist();
-	playlist.push_back(songOneLoc);
-	CreateThread(0,0,(LPTHREAD_START_ROUTINE)&NetworkProc,0,0,0);
+
+	nc.initialize();	
+	playlist.push_back(songTwoLoc);
+	//CreateThread(0,0,(LPTHREAD_START_ROUTINE)&NetworkProc,0,0,0);
 	//CreateThread(0,0,(LPTHREAD_START_ROUTINE)&MusicProc,0,0,0);
 	CreateThread(0,0,(LPTHREAD_START_ROUTINE)&UDPInputProc,0,0,0);
-	//while(true) {
+	while(true) {
 		if(playlist.size() != 0) {
-			readFile();
+			openFile();
 			sendDataToClients();
 		}
-	//}
+	}
 }
 
 void MusicProc(void *ID) {
@@ -42,20 +42,30 @@ void initializeSonglist() {
 	songTitles[2] = stringToCharStar(songList[songThree]);
 }
 
-void readFile() {
+void openFile() {
 	fileName = stringToCharStar(playlist.front());
-	getFileSize(fileName);
-	wavFile.open(fileName);
+	wavFile = CreateFile(fileName,GENERIC_READ,0,0,OPEN_EXISTING,0,0);
+	//getFileSize(fileName);
+	//wavFile.open(fileName);
 }
 
 void sendDataToClients() {
-	for(int i = 0; i < numFileChunks; i++) {
-		wavFile.read(fileBuf, READ_BUFFER_SIZE);
-		nc.sendMulticast(fileBuf, READ_BUFFER_SIZE);
-		wait(1);
+	DWORD bytesRead;
+	size_t sendBufferSize = READ_BUFFER_SIZE;
+	//for(int i = 0; i < numFileChunks; i++) {
+	while(true) {
+		ReadFile(wavFile, fileBuf, READ_BUFFER_SIZE, &bytesRead,0);
+		if(bytesRead == 0) 
+			break;
+		//wavFile.read(fileBuf, bytesRead);
+		nc.sendMulticast(fileBuf, bytesRead);
+		printf("Data Sent.");
+		Sleep(5);
+		//wait(1);
 	}
 	playlist.pop_front();
 }
+
 char* stringToCharStar(string temp) {
 	char* result;
 	result = new char[temp.size()+1];
