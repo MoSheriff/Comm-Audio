@@ -2,7 +2,7 @@
 #define AUDIOOUTPUT_H
 
 
-#include "NetworkingComponent.h"
+#include "../../lib/NetworkingComponent.h"
 #include <windows.h>
 #include <mmsystem.h>
 #include <string>
