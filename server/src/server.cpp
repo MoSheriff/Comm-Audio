@@ -6,18 +6,17 @@ int main(int argc, char **argv) {
 	initializeSonglist();
 	playlist.push_back(songOneLoc);
 	CreateThread(0,0,(LPTHREAD_START_ROUTINE)&NetworkProc,0,0,0);
-	CreateThread(0,0,(LPTHREAD_START_ROUTINE)&MusicProc,0,0,0);
+	//CreateThread(0,0,(LPTHREAD_START_ROUTINE)&MusicProc,0,0,0);
 	CreateThread(0,0,(LPTHREAD_START_ROUTINE)&UDPInputProc,0,0,0);
-	return 0;
-}
-
-void MusicProc(void *ID) {
-	while(true) {
+	//while(true) {
 		if(playlist.size() != 0) {
 			readFile();
 			sendDataToClients();
 		}
-	}
+	//}
+}
+
+void MusicProc(void *ID) {
 }
 
 void NetworkProc(void *ID) {
@@ -31,7 +30,7 @@ void UDPInputProc(void *ID) {
 	while(true) {
 		nc.receiveData(recieveBuffer);
 		playlist.push_back(recieveBuffer->buf);
-	}
+	}	
 }
 
 void initializeSonglist() {
