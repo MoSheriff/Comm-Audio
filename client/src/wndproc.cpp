@@ -18,6 +18,7 @@ LRESULT CALLBACK WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
     std::list<std::string>::iterator it;
 	int i, j, cxClient, cyClient;
     WSABUF  buffer;
+	char* sendBuf;
 
      switch (message)
      {
@@ -29,6 +30,9 @@ LRESULT CALLBACK WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 	 case WM_CREATE:
 		 
          nc = new NetworkingComponent(NetworkingComponent::CLIENT);
+		 buffer.buf = (char*)malloc(1024);
+		 //ZeroMemory(buffer.buf, 1024);
+		 memset(buffer.buf,'\0', 1024);
 
          output = new AudioOutput();
          output->setNc(nc);
@@ -83,9 +87,9 @@ LRESULT CALLBACK WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
              if(j == LB_ERR)
                  break;
 
-             buffer.buf = (char *)j;
+             sendBuf = "Shine On You Crazy Diamond\0";
 
-             nc->sendData(buffer.buf, buffer.len);
+             nc->sendData(sendBuf, strlen(sendBuf));
              
              break;
 		 
@@ -101,7 +105,8 @@ LRESULT CALLBACK WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 
              for (it = titles.begin(); it != titles.end(); ++it)
              {
-                 SendDlgItemMessage(hwnd, CLIENT_LISTBOX, LB_ADDSTRING, 0, (LPARAM)*it->c_str()); //listbox test
+				 //*it += '\0';
+                 SendDlgItemMessage(hwnd, SONG_LISTBOX, LB_ADDSTRING, 0, (LPARAM)it->c_str() /*(LPARAM)"Poop"*/); //listbox test
              }
 			 break;
 		 
@@ -127,20 +132,17 @@ std::list<std::string> getTitles(NetworkingComponent *nc)
     WSABUF                  buffer;
 
     bytesRead = nc->receiveData(&buffer);
+	buffer.buf[bytesRead] = '\0';
 
-    for(int i = 0; i < buffer.len; i++)
+    for(int i = 0; i < buffer.len+1; i++)
     {
-        if(buffer.buf[i] != ',')
+        if(buffer.buf[i] != ',' && buffer.buf[i] != '\0')
         {
             temp += buffer.buf[i];
+			continue;
         }
-
-        else
-        {
-            titles.push_back(temp);
-            temp.resize(0);
-        }
-
+        titles.push_back(temp);
+        temp.resize(0);
     }
 
     return titles;

@@ -16,6 +16,5 @@
 #define CLIENT_LISTBOX		110
 
 LRESULT CALLBACK WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
-std::list<std::string> getTitles(NetworkingComponent *nc);
 
 #endif
