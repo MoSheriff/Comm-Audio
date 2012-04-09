@@ -6,6 +6,7 @@
 AudioOutput::AudioOutput()
 {
     initialize();
+    getHeaderData();
 }
 
 
@@ -105,13 +106,30 @@ DWORD WINAPI AudioOutput::playProc(LPVOID lpParameter)
 }
 
 
-void AudioOutput::getTitles()
+std::list<std::string> AudioOutput::getTitles()
 {
     DWORD bytesRead;
+    std::list<std::string> titles;
+    std::string temp;
 
     bytesRead = globals->nc->receiveData(&(globals->buffer));
-    memcpy(globals->titles, &(globals->buffer), bytesRead);
-    return;
+    
+    for(int i = 0; i < globals->buffer.len; i++)
+    {
+        if(globals->buffer.buf[i] != ',')
+        {
+            temp += globals->buffer.buf[i];
+        }
+
+        else
+        {
+            titles.push_back(temp);
+            temp.resize(0);
+        }
+        
+    }
+
+    return titles;
 }
 
 
@@ -178,7 +196,7 @@ void AudioOutput::cleanUp()
     DeleteCriticalSection(&(globals->countGuard));
     freeBlocks(globals->blocks);
     waveOutClose(globals->waveOut);
-    free(globals->titles);
+    /*free(globals->titles);*/
     free(globals->nc);
     free(globals);
 }
@@ -201,6 +219,13 @@ int AudioOutput::connect(char *host, unsigned short socket)
     return globals->nc->connectToServer(host, socket);
 }
 
+void AudioOutput::setNc(NetworkingComponent *nc)
+{
+    globals->nc = nc;
+    globals->nc->initialize();
+}
+
+
 void AudioOutput::initialize()
 {
     globals = (PGLOBALS)malloc(sizeof(GLOBALS));
@@ -211,7 +236,6 @@ void AudioOutput::initialize()
     globals->currentBlock= 0;
     InitializeCriticalSection(&(globals->countGuard));
     globals->nc = new NetworkingComponent(NetworkingComponent::CLIENT);
-    globals->nc->initialize();
 }
 
 

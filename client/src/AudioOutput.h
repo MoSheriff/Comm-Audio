@@ -2,10 +2,11 @@
 #define AUDIOOUTPUT_H
 
 
-#include "../../lib/NetworkingComponent.h"
+#include "NetworkingComponent.h"
 #include <windows.h>
 #include <mmsystem.h>
 #include <string>
+#include <list>
 
 #pragma comment(lib, "WinMM.Lib")
 
@@ -18,6 +19,7 @@
 typedef struct _globals
 {
     HWAVEOUT            waveOut;
+    HANDLE              hFile;
     WAVEHDR             *blocks;
     WAVEFORMATEX        wfx;
     int                 freeBlocks;
@@ -43,8 +45,9 @@ public:
     void cleanUp();
     void initialize();
     void getHeaderData();
-    void getTitles();
+    std::list<std::string> getTitles();
     int connect(char *host, unsigned short socket);
+    void setNc(NetworkingComponent *nc);
     static void CALLBACK waveOutProc(HWAVEOUT, UINT, DWORD, DWORD, DWORD);
     static DWORD WINAPI playProc(LPVOID lpParameter);
 
