@@ -4,7 +4,7 @@
 
 LRESULT CALLBACK WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-	HWND playButton, pauseButton, rewindButton, fastforwardButton, songListBox, clientListBox,
+	HWND listenButton, quitButton, skipButton, songListBox, clientListBox,
 		requestButton, updateButton, callButton, endcallButton;
 	
     static NetworkingComponent *nc;    
@@ -13,8 +13,8 @@ LRESULT CALLBACK WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
     HDC hdc;
 	PAINTSTRUCT ps;
     static std::list<std::string> titles;
-
-	int cxClient, cyClient;
+    std::list<std::string>::iterator it;
+	int i, cxClient, cyClient;
 
      switch (message)
      {
@@ -30,17 +30,16 @@ LRESULT CALLBACK WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
          output = new AudioOutput();
          output->setNc(nc);
 
-         rewindButton = CreateWindow("button", "<<",  WS_CHILD|WS_VISIBLE, 20, 480, 40, 40, hwnd, (HMENU)PLAY_BUTTON, NULL, NULL);
-		 playButton = CreateWindow("button", "|>", WS_CHILD|WS_VISIBLE, 65, 480, 40, 40, hwnd, (HMENU)PLAY_BUTTON, NULL, NULL);
-		 pauseButton = CreateWindow("button", "||",  WS_CHILD|WS_VISIBLE, 110, 480, 40, 40, hwnd, (HMENU)PLAY_BUTTON, NULL, NULL);
-		 fastforwardButton = CreateWindow("button", ">>",  WS_CHILD|WS_VISIBLE, 155, 480, 40, 40, hwnd, (HMENU)PLAY_BUTTON, NULL, NULL);
+         listenButton = CreateWindow("button", "|>", WS_CHILD|WS_VISIBLE, 65, 480, 40, 40, hwnd, (HMENU)LISTEN_BUTTON, NULL, NULL);
+		 quitButton = CreateWindow("button", "||",  WS_CHILD|WS_VISIBLE, 110, 480, 40, 40, hwnd, (HMENU)LISTEN_BUTTON, NULL, NULL);
+		 skipButton = CreateWindow("button", ">>",  WS_CHILD|WS_VISIBLE, 155, 480, 40, 40, hwnd, (HMENU)LISTEN_BUTTON, NULL, NULL);
 
-		 requestButton = CreateWindow("button", "Request",  WS_CHILD|WS_VISIBLE, 610, 205, 80, 20, hwnd, (HMENU)REQUEST_BUTTON, NULL, NULL);
+		 requestButton = CreateWindow("button", "Request",  WS_CHILD|WS_VISIBLE, 100, 475, 80, 20, hwnd, (HMENU)REQUEST_BUTTON, NULL, NULL);
 		 updateButton = CreateWindow("button", "Update",  WS_CHILD|WS_VISIBLE, 600, 435, 100, 20, hwnd, (HMENU)UPDATE_BUTTON, NULL, NULL);
 		 callButton = CreateWindow("button", "Call",  WS_CHILD|WS_VISIBLE, 560, 460, 80, 20, hwnd, (HMENU)CALL_BUTTON, NULL, NULL);
 		 endcallButton = CreateWindow("button", "End Call",  WS_CHILD|WS_VISIBLE, 660, 460, 80, 20, hwnd, (HMENU)ENDCALL_BUTTON, NULL, NULL);
 
-		 songListBox = CreateWindow("listbox", NULL, WS_CHILD | WS_VISIBLE |WS_BORDER| LBS_NOTIFY, 530, 20, 240, 180, hwnd,(HMENU)SONG_LISTBOX, NULL, NULL);
+		 songListBox = CreateWindow("listbox", NULL, WS_CHILD | WS_VISIBLE |WS_BORDER| LBS_NOTIFY, 20, 20, 240, 450, hwnd,(HMENU)SONG_LISTBOX, NULL, NULL);
 		 clientListBox = CreateWindow("listbox", NULL, WS_CHILD | WS_VISIBLE |WS_BORDER| LBS_NOTIFY, 530, 250, 240, 180, hwnd,(HMENU)CLIENT_LISTBOX, NULL, NULL);
 		 break;
 
@@ -60,24 +59,25 @@ LRESULT CALLBACK WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
              output->connect(hostName, NetworkingComponent::LISTENPORT);
              
              // use the return value of this to display the available titles
-             titles = output->getTitles();
+             titles = getTitles();
+             
+             for (it = titles.begin(); it != titles.end(); ++it)
+             {
+                 SendDlgItemMessage(hwnd, CLIENT_LISTBOX, LB_ADDSTRING, 0, (LPARAM)*it->c_str()); //listbox test
+             }
 
-
-			 break;
+             break;
 		 
          case ID_SERVER_DISCONNECT:
 			 break;
 		 
-         case PLAY_BUTTON:
+         case LISTEN_BUTTON:
 			 break;
 		 
-         case PAUSE_BUTTON:
+         case LEAVE_BUTTON:
 			 break;
 		 
-         case REWIND_BUTTON:
-			 break;
-		 
-         case FASTFORWARD_BUTTON:
+         case SKIP_BUTTON:
 			 break;
 		 
          case REQUEST_BUTTON:
@@ -96,10 +96,37 @@ LRESULT CALLBACK WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 		 break;
 
 	 case WM_DESTROY:
-         free(output);         
-         free(nc);
-		 PostQuitMessage (0) ;
+         delete output;         
+         PostQuitMessage (0) ;
 		 break;
 	 }
 	 return DefWindowProc (hwnd, message, wParam, lParam) ;
+}
+
+
+std::list<std::string> getTitles(NetworkingComponent *nc)
+{
+    DWORD                   bytesRead;
+    std::list<std::string>  titles;
+    std::string             temp;
+    WSABUF                  buffer;
+
+    bytesRead = nc->receiveData(&buffer);
+
+    for(int i = 0; i < buffer.len; i++)
+    {
+        if(buffer.buf[i] != ',')
+        {
+            temp += buffer.buf[i];
+        }
+
+        else
+        {
+            titles.push_back(temp);
+            temp.resize(0);
+        }
+
+    }
+
+    return titles;
 }

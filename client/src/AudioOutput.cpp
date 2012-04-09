@@ -106,33 +106,6 @@ DWORD WINAPI AudioOutput::playProc(LPVOID lpParameter)
 }
 
 
-std::list<std::string> AudioOutput::getTitles()
-{
-    DWORD bytesRead;
-    std::list<std::string> titles;
-    std::string temp;
-
-    bytesRead = globals->nc->receiveData(&(globals->buffer));
-    
-    for(int i = 0; i < globals->buffer.len; i++)
-    {
-        if(globals->buffer.buf[i] != ',')
-        {
-            temp += globals->buffer.buf[i];
-        }
-
-        else
-        {
-            titles.push_back(temp);
-            temp.resize(0);
-        }
-        
-    }
-
-    return titles;
-}
-
-
 WAVEHDR* AudioOutput::allocateBlocks(int size, int count)
 {
     unsigned char* buffer;
@@ -196,8 +169,7 @@ void AudioOutput::cleanUp()
     DeleteCriticalSection(&(globals->countGuard));
     freeBlocks(globals->blocks);
     waveOutClose(globals->waveOut);
-    /*free(globals->titles);*/
-    free(globals->nc);
+    delete globals->nc;
     free(globals);
 }
 

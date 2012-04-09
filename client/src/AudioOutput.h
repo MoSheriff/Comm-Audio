@@ -26,7 +26,6 @@ typedef struct _globals
     int                 currentBlock, len;
     WSABUF              buffer;
     CRITICAL_SECTION    countGuard;
-    char                *titles;
     NetworkingComponent *nc;
 
 }GLOBALS, *PGLOBALS;
