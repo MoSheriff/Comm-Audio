@@ -4,8 +4,8 @@ int main(int argc, char **argv) {
 	initializeSonglist();
 
 	nc.initialize();	
-	playlist.push_back(songTwoLoc);
-	//CreateThread(0,0,(LPTHREAD_START_ROUTINE)&NetworkProc,0,0,0);
+	playlist.push_back(songOneLoc);
+	CreateThread(0,0,(LPTHREAD_START_ROUTINE)&NetworkProc,0,0,0);
 	//CreateThread(0,0,(LPTHREAD_START_ROUTINE)&MusicProc,0,0,0);
 	CreateThread(0,0,(LPTHREAD_START_ROUTINE)&UDPInputProc,0,0,0);
 	while(true) {
@@ -22,7 +22,7 @@ void MusicProc(void *ID) {
 void NetworkProc(void *ID) {
 	while(true) {
 		SOCKET clientSock = nc.waitForClient();
-		nc.sendData(clientSock, songTitles, strlen(*songTitles));
+		nc.sendData(clientSock, songTitles, strlen(songTitles));
 	}
 }
 
@@ -37,13 +37,15 @@ void initializeSonglist() {
 	songList.insert(pair<string,string>(songOne, songOneLoc));
 	songList.insert(pair<string,string>(songTwo, songTwoLoc));
 	songList.insert(pair<string,string>(songThree, songThreeLoc));
-	songTitles[0] = stringToCharStar(songList[songOne]);
-	songTitles[1] = stringToCharStar(songList[songTwo]);
-	songTitles[2] = stringToCharStar(songList[songThree]);
+	songTitles = stringToCharStar(songOne,1);
+	strcat(songTitles, stringToCharStar(songTwo,1));
+	strcat(songTitles, stringToCharStar(songThree,1));
+	songTitles[strlen(songTitles)-1] = '\0'; 
 }
 
 void openFile() {
-	fileName = stringToCharStar(playlist.front());
+	fileName = stringToCharStar(playlist.front(),0);
+
 	wavFile = CreateFile(fileName,GENERIC_READ,0,0,OPEN_EXISTING,0,0);
 	//getFileSize(fileName);
 	//wavFile.open(fileName);
@@ -60,16 +62,17 @@ void sendDataToClients() {
 		//wavFile.read(fileBuf, bytesRead);
 		nc.sendMulticast(fileBuf, bytesRead);
 		printf("Data Sent.");
-		Sleep(5);
-		//wait(1);
 	}
 	playlist.pop_front();
 }
 
-char* stringToCharStar(string temp) {
+char* stringToCharStar(string temp, int flag) {
 	char* result;
 	result = new char[temp.size()+1];
-	result[temp.size()] = '\0';
+	memset(result, '\0', strlen(result));
+	if(flag == 1) {
+	result[temp.size()] = ',';
+	}
 	memcpy(result, temp.c_str(), temp.size());
 	return result;
 }
