@@ -7,7 +7,7 @@ class MicLib
 {
 public:
     MicLib(NetworkingComponent *nc);
-    void record();
+    void record(const std::string& ip);
     void stop();
 
 private:

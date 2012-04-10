@@ -76,7 +76,13 @@ BOOL CALLBACK DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
             break;
 
         case IDC_BTNCHAT:
-            mic->record();
+            selected = SendDlgItemMessage(hDlg, IDC_LSTSONGLIST, LB_GETCURSEL, 0, 0);
+
+            if (selected == LB_ERR)
+                MessageBox(hDlg, "You need to select a client first.", "Error", MB_ICONINFORMATION);
+            else
+                SendDlgItemMessage(hDlg, IDC_LSTSONGLIST, LB_GETTEXT, selected, (LPARAM) buffer);
+            mic->record(buffer);
             break;
 
         case IDC_BTNSTOP:
