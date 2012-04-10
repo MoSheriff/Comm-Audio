@@ -15,7 +15,6 @@
 #define SONG_LISTBOX		109
 #define CLIENT_LISTBOX		110
 
-LRESULT CALLBACK WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
 BOOL CALLBACK DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
 
 #endif
