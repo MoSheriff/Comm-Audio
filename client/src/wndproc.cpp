@@ -5,6 +5,29 @@
 extern HWND hDlg;
 std::list<std::string> getTitles(NetworkingComponent *nc);
 
+DWORD WINAPI SaveFile(void *net)
+{
+    NetworkingComponent* nc = (NetworkingComponent *) net;
+    WSABUF buffer;
+    
+    HANDLE hFile = CreateFile("C:\\Music.wav", GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hFile == INVALID_HANDLE_VALUE)
+    {
+        MessageBox(hDlg, "Unable to create save file.", "Error", MB_ICONERROR);
+        return 0;
+    }
+
+    DWORD bytesWritten;
+    while(nc->receiveData(&buffer))
+    {
+        if (WriteFile(hFile, buffer.buf, buffer.len, &bytesWritten, NULL))
+            MessageBox(hDlg, "Failed to write a chunk of file.", "Error", MB_ICONINFORMATION);
+    }
+
+    CloseHandle(hFile);
+    return 0;
+}
+
 BOOL CALLBACK DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
     static NetworkingComponent *nc;
@@ -40,15 +63,28 @@ BOOL CALLBACK DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
             break;
 
         case IDC_BTNSELECT:
+        case IDC_BTNDOWNLOAD:
             int selected = SendDlgItemMessage(hDlg, IDC_LSTSONGLIST, LB_GETCURSEL, 0, 0);
 
             if (selected == LB_ERR)
+            {
                 MessageBox(hDlg, "You need to select a song first.", "Error", MB_ICONINFORMATION);
+                return TRUE;
+            }
             else
+            {
                 SendDlgItemMessage(hDlg, IDC_LSTSONGLIST, LB_GETTEXT, selected, (LPARAM) buffer);
+            }
 
-            sprintf(data, "0:%s", buffer);
+            if (LOWORD(wParam) == IDC_BTNSELECT)
+                sprintf(data, "0:%s", buffer);
+            else
+                sprintf(data, "1:%s", buffer);
+
             nc->sendData(data, strlen(data));
+
+            if (LOWORD(wParam) == IDC_BTNDOWNLOAD)
+                CreateThread(NULL, 0, SaveFile, nc, 0, NULL);
             break;
         }
         return TRUE;
