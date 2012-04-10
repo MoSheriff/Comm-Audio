@@ -72,9 +72,14 @@ void AudioOutput::playAudio()
         ExitProcess(1);
     }
 
+    if(waveOutOpen(&(globals->micOut), WAVE_MAPPER, &(globals->wfx), (DWORD_PTR)waveOutProc, (DWORD_PTR)globals, CALLBACK_FUNCTION) != MMSYSERR_NOERROR) 
+    {
+        fprintf(stderr, "unable to open wave mapper device\n");
+        ExitProcess(1);
+    }
+
     globals->hThread = CreateThread(NULL, 0, AudioOutput::playProc, this, 0, NULL);
 }
-
 
 
 DWORD WINAPI AudioOutput::playProc(LPVOID lpParameter)
@@ -182,6 +187,7 @@ void AudioOutput::cleanUp()
     DeleteCriticalSection(&(globals->countGuard));
     freeBlocks(globals->blocks);
     waveOutClose(globals->waveOut);
+    waveOutClose(globals->micOut);
     delete globals->nc;
     free(globals);
 }
@@ -196,6 +202,38 @@ void AudioOutput::getHeaderData()
     globals->wfx.wFormatTag = WAVE_FORMAT_PCM;
     globals->wfx.nBlockAlign = (globals->wfx.wBitsPerSample * globals->wfx.nChannels) >> 3;
     globals->wfx.nAvgBytesPerSec = globals->wfx.nBlockAlign * globals->wfx.nSamplesPerSec;
+}
+
+void AudioOutput::micChat()
+{
+    globals->micThread = CreateThread(NULL, 0, AudioOutput::micProc, this, 0, NULL);
+}
+
+
+DWORD WINAPI AudioOutput::micProc(LPVOID lpParameter)
+{
+    AudioOutput *audio = (AudioOutput*)lpParameter;
+    DWORD bytesRead;
+
+    /* playback loop */
+    while(1) 
+    {
+
+        bytesRead = audio->globals->nc->receiveUDP(&(audio->globals->buffer));
+
+        if(bytesRead < sizeof(audio->globals->buffer)) 
+        {
+            memset(audio->globals->buffer.buf + bytesRead, 0, BUFSIZE - bytesRead);
+        }
+
+        audio->writeAudio(audio->globals->micOut, audio->globals->buffer.buf, BUFSIZE);
+    }
+
+    /* wait for all blocks to complete */
+    while(audio->globals->freeBlocks < BLOCK_COUNT)
+    {
+        Sleep(10);
+    }
 }
 
 

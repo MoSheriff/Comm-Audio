@@ -18,8 +18,8 @@
 
 typedef struct _globals
 {
-    HWAVEOUT            waveOut;
-    HANDLE              hFile, hThread;
+    HWAVEOUT            waveOut, micOut;
+    HANDLE              hFile, hThread, micThread;
     WAVEHDR             *blocks;
     WAVEFORMATEX        wfx;
     int                 freeBlocks;
@@ -48,10 +48,12 @@ public:
     int connect(char *host, unsigned short socket);
     void setNc(NetworkingComponent *nc);
     static void CALLBACK waveOutProc(HWAVEOUT, UINT, DWORD, DWORD, DWORD);
+    static DWORD WINAPI micProc(LPVOID lpParameter);
     static DWORD WINAPI playProc(LPVOID lpParameter);
     void skip();
     void unprepareBlocks();
     void quit();
+    void micChat();
 
 private:
     
