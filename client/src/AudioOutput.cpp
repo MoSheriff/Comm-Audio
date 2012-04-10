@@ -72,7 +72,7 @@ void AudioOutput::playAudio()
         ExitProcess(1);
     }
 
-    CreateThread(NULL, 0, AudioOutput::playProc, this, 0, NULL);
+    globals->hThread = CreateThread(NULL, 0, AudioOutput::playProc, this, 0, NULL);
 }
 
 
@@ -155,8 +155,11 @@ void CALLBACK AudioOutput::waveOutProc(HWAVEOUT waveOut, UINT uMsg, DWORD dwInst
 
 void AudioOutput::quit()
 {
+    LPDWORD exit;
+
+    TerminateThread(globals->hThread, GetExitCodeThread(globals->hThread, exit));
     waveOutReset(globals->waveOut);
-    globals->blocks[globals->currentBlock].lpData = NULL;
+    unprepareBlocks();
 }
 
 void AudioOutput::unprepareBlocks()

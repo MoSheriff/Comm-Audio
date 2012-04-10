@@ -14,12 +14,12 @@
 #define BUFSIZE    1024
 #define BLOCK_COUNT 20
 
-#define EVER    (;;)
+#define EVER    (;;){}
 
 typedef struct _globals
 {
     HWAVEOUT            waveOut;
-    HANDLE              hFile;
+    HANDLE              hFile, hThread;
     WAVEHDR             *blocks;
     WAVEFORMATEX        wfx;
     int                 freeBlocks;
