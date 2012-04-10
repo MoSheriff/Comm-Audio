@@ -1,6 +1,7 @@
 #include "NetworkingComponent.h"
 #include "AudioOutput.h"
 #include "main.h"
+#include "MicLib.h"
 
 extern HWND hDlg;
 std::list<std::string> getTitles(NetworkingComponent *nc);
@@ -9,6 +10,7 @@ BOOL CALLBACK DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
     static NetworkingComponent *nc;
     static AudioOutput *output;
+    static MicLib *mic;
     static std::list<std::string> titles;
 
     std::list<std::string>::iterator it;
@@ -21,6 +23,7 @@ BOOL CALLBACK DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
     case WM_INITDIALOG:
         nc = new NetworkingComponent(NetworkingComponent::CLIENT);
         output = new AudioOutput;
+        mic = new MicLib(nc);
         output->setNc(nc);
         return TRUE;
 
@@ -50,6 +53,14 @@ BOOL CALLBACK DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 
             sprintf(data, "0:%s", buffer);
             nc->sendData(data, strlen(data));
+            break;
+
+        case IDC_BTNCHAT:
+            mic->record();
+            break;
+
+        case IDC_BTNSTOP:
+            mic->stop();
             break;
 
         case IDC_BTNSKIP:
