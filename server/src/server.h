@@ -7,6 +7,7 @@
 #include <list>
 #include <process.h>
 #include "NetworkingComponent.h"
+#include "timer.h"
 using namespace std;
 
 #define songOneLocation string("Shine On You Crazy Diamond.wav")
@@ -21,7 +22,7 @@ char* songTitles;
 char fileBuf[READ_BUFFER_SIZE];
 int fileSize;
 int numFileChunks;
-WSABUF *recieveBuffer;
+WSABUF recieveBuffer;
 HANDLE wavFile;
 HANDLE hPlaylistMutex = CreateMutex(NULL,FALSE,NULL);
 HANDLE hSendMusic = CreateMutex(NULL,FALSE,NULL);
@@ -40,6 +41,6 @@ void initializeSonglist();
 void openFile();
 void sendDataToClients();
 char* stringToCharStar(string temp, int flag);
-void NetworkProc (void *ID);
+void SendSongListProc (void *ID);
 void MusicProc (void *ID);
-void UDPInputProc(void *ID);
+void IncomingMessageProc(void *ID);
