@@ -7,7 +7,6 @@
 #include <list>
 #include <process.h>
 #include "NetworkingComponent.h"
-#include "timer.h"
 using namespace std;
 
 #define songOneLocation string("Shine On You Crazy Diamond.wav")
