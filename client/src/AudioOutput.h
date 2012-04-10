@@ -49,6 +49,9 @@ public:
     void setNc(NetworkingComponent *nc);
     static void CALLBACK waveOutProc(HWAVEOUT, UINT, DWORD, DWORD, DWORD);
     static DWORD WINAPI playProc(LPVOID lpParameter);
+    void skip();
+    void unprepareBlocks();
+    void quit();
 
 private:
     

@@ -73,7 +73,6 @@ void AudioOutput::playAudio()
     }
 
     CreateThread(NULL, 0, AudioOutput::playProc, this, 0, NULL);
-    for EVER{}
 }
 
 
@@ -154,8 +153,13 @@ void CALLBACK AudioOutput::waveOutProc(HWAVEOUT waveOut, UINT uMsg, DWORD dwInst
     LeaveCriticalSection(&(globals->countGuard));
 }
 
+void AudioOutput::quit()
+{
+    waveOutReset(globals->waveOut);
+    globals->blocks[globals->currentBlock].lpData = NULL;
+}
 
-void AudioOutput::cleanUp()
+void AudioOutput::unprepareBlocks()
 {
     size_t  i;
 
@@ -163,9 +167,15 @@ void AudioOutput::cleanUp()
     for(i = 0; i < globals->freeBlocks; i++)
     {
         if(globals->blocks[i].dwFlags & WHDR_PREPARED)
+        {
             waveOutUnprepareHeader(globals->waveOut, &(globals->blocks)[i], sizeof(WAVEHDR));
+        }
     }
+}
 
+void AudioOutput::cleanUp()
+{
+    unprepareBlocks();
     DeleteCriticalSection(&(globals->countGuard));
     freeBlocks(globals->blocks);
     waveOutClose(globals->waveOut);
