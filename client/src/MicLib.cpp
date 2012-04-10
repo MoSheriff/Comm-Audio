@@ -5,6 +5,7 @@ WAVEHDR blocks[2];
 HWAVEIN hWaveIn;
 bool recording = false;
 int doneAll = 0;
+std::string ip;
 
 static void PrintWaveErrorMsg(DWORD err, TCHAR * str)
 {
@@ -36,7 +37,7 @@ static DWORD WINAPI waveInProc(void *nc)
 				if (((WAVEHDR *)msg.lParam)->dwBytesRecorded)
 				{
 
-                    //net->sendUDP(((WAVEHDR *)msg.lParam)->lpData, ((WAVEHDR *)msg.lParam)->dwBytesRecorded, "127.0.0.1");
+                    net->sendUDP(((WAVEHDR *)msg.lParam)->lpData, ((WAVEHDR *)msg.lParam)->dwBytesRecorded, ip.c_str());
 				}
 
 				if (recording)
@@ -83,7 +84,7 @@ MicLib::MicLib(NetworkingComponent *nc)
     micFormat_.nAvgBytesPerSec = micFormat_.nBlockAlign * micFormat_.nSamplesPerSec;
 }
 
-void MicLib::record()
+void MicLib::record(const std::string& cip)
 {
 	MMRESULT err;
 	HANDLE waveInThread;
@@ -91,6 +92,7 @@ void MicLib::record()
 	char*	buff;
 	DWORD	dwBytesRead, dwBytesWrite;
 
+    ip = cip;
 	buff = (char*) malloc(sizeof(char));
 
 	waveInThread = CreateThread(0, 0, waveInProc, 0, 0, (DWORD *) &err);
