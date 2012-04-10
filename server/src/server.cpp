@@ -40,7 +40,7 @@ void IncomingMessageProc(void *ID) {
 				case '2':
 					break;
 				case '3':
-					skipSong();
+					skipVotes++;
 					break;
 				default:
 					break;
@@ -76,6 +76,10 @@ void sendDataToClients() {
 	DWORD bytesRead;
 	size_t sendBufferSize = READ_BUFFER_SIZE;
 	while(true) {
+		if(skipVotes >= (clientList.size()/2)) {
+			skipVotes = 0;
+			break;
+		}
 		ReadFile(wavFile, fileBuf, READ_BUFFER_SIZE, &bytesRead,0);
 		if(bytesRead == 0) 
 			break;
@@ -95,13 +99,4 @@ char* stringToCharStar(string temp, int flag) {
 	}
 	memcpy(result, temp.c_str(), temp.size());
 	return result;
-}
-
-void skipSong() {
-	skipVotes++;
-	if(skipVotes >= (clientList.size()/2)) {
-		playlist.pop_front();
-		openFile();
-		skipVotes = 0;
-	}
 }

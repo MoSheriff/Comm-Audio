@@ -55,4 +55,3 @@ char* stringToCharStar(string temp, int flag);
 void SendSongListProc (void *ID);
 void MusicProc (void *ID);
 void IncomingMessageProc(void *ID);
-void skipSong();
