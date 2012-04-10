@@ -4,14 +4,13 @@ int main(int argc, char **argv) {
 	initializeSonglist();
 
 	nc.initialize();	
-	playlist.push_back(songOneLoc);
+	//playlist.push_back(songOneLoc);
 	CreateThread(0,0,(LPTHREAD_START_ROUTINE)&SendSongListProc,0,0,0);
 	//CreateThread(0,0,(LPTHREAD_START_ROUTINE)&MusicProc,0,0,0);
 	CreateThread(0,0,(LPTHREAD_START_ROUTINE)&IncomingMessageProc,0,0,0);
 	while(true) {
 		if(playlist.size() != 0) {
 			openFile();
-			sendDataToClients();
 		}
 	}
 }
@@ -60,6 +59,7 @@ void openFile() {
 	wavFile = CreateFile(fileName,GENERIC_READ,0,0,OPEN_EXISTING,0,0);
 	//getFileSize(fileName);
 	//wavFile.open(fileName);
+	sendDataToClients();
 }
 
 void sendDataToClients() {
@@ -72,7 +72,7 @@ void sendDataToClients() {
 			break;
 		//wavFile.read(fileBuf, bytesRead);
 		nc.sendMulticast(fileBuf, bytesRead);
-		//printf("Data Sent.");
+		printf("Data Sent.");
 		Sleep(5);
 	}
 	playlist.pop_front();
