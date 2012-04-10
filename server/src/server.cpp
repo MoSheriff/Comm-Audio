@@ -2,11 +2,8 @@
 
 int main(int argc, char **argv) {
 	initializeSonglist();
-
 	nc.initialize();	
-	//playlist.push_back(songOneLoc);
 	CreateThread(0,0,(LPTHREAD_START_ROUTINE)&SendSongListProc,0,0,0);
-	//CreateThread(0,0,(LPTHREAD_START_ROUTINE)&MusicProc,0,0,0);
 	CreateThread(0,0,(LPTHREAD_START_ROUTINE)&IncomingMessageProc,0,0,0);
 	while(true) {
 		if(playlist.size() != 0) {
@@ -19,8 +16,10 @@ void MusicProc(void *ID) {
 }
 
 void SendSongListProc(void *ID) {
+	string clientIP;
 	while(true) {
-		SOCKET clientSock = nc.waitForClient();
+		SOCKET clientSock = nc.waitForClient(clientIP);
+		clientList.push_back(clientIP); // need to get the IP from the NetworkingComponent somehow
 		nc.sendData(clientSock, songTitles, strlen(songTitles));
 	}
 }
@@ -37,6 +36,15 @@ void IncomingMessageProc(void *ID) {
 					playlist.push_back(songList[recieveBufData]);
 					break;
 				case '1':
+					break;
+				case '2':
+					break;
+				case '3':
+					skipVotes++;
+					if(skipVotes >= (clientList.size()/2)) {
+						playlist.pop_front();
+						skipVotes = 0;
+					}
 					break;
 				default:
 					break;
@@ -65,20 +73,16 @@ void openFile() {
 	fileName = stringToCharStar(playlist.front(),0);
 
 	wavFile = CreateFile(fileName,GENERIC_READ,0,0,OPEN_EXISTING,0,0);
-	//getFileSize(fileName);
-	//wavFile.open(fileName);
 	sendDataToClients();
 }
 
 void sendDataToClients() {
 	DWORD bytesRead;
 	size_t sendBufferSize = READ_BUFFER_SIZE;
-	//for(int i = 0; i < numFileChunks; i++) {
 	while(true) {
 		ReadFile(wavFile, fileBuf, READ_BUFFER_SIZE, &bytesRead,0);
 		if(bytesRead == 0) 
 			break;
-		//wavFile.read(fileBuf, bytesRead);
 		nc.sendMulticast(fileBuf, bytesRead);
 		printf("Data Sent.");
 		Sleep(5);
@@ -95,13 +99,4 @@ char* stringToCharStar(string temp, int flag) {
 	}
 	memcpy(result, temp.c_str(), temp.size());
 	return result;
-}
-
-void getFileSize(char* fileName) {
-	FILE* file;
-	file = fopen(fileName, "r");
-	fseek(file,0, SEEK_END);
-	fileSize = ftell(file);
-	numFileChunks = fileSize/READ_BUFFER_SIZE;
-	fclose(file);
 }
