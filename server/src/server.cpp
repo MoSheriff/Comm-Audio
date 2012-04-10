@@ -38,6 +38,8 @@ void IncomingMessageProc(void *ID) {
 					break;
 				case '1':
 					break;
+				default:
+					break;
 			}
 		}
 	}
@@ -47,9 +49,15 @@ void initializeSonglist() {
 	songList.insert(pair<string,string>(songOne, songOneLoc));
 	songList.insert(pair<string,string>(songTwo, songTwoLoc));
 	songList.insert(pair<string,string>(songThree, songThreeLoc));
+	songList.insert(pair<string,string>(songFour, songFourLoc));
+	songList.insert(pair<string,string>(songFive, songFiveLoc));
+	songList.insert(pair<string,string>(songSix, songSixLoc));
 	songTitles = stringToCharStar(songOne,1);
 	strcat(songTitles, stringToCharStar(songTwo,1));
 	strcat(songTitles, stringToCharStar(songThree,1));
+	strcat(songTitles, stringToCharStar(songFour,1));
+	strcat(songTitles, stringToCharStar(songFive,1));
+	strcat(songTitles, stringToCharStar(songSix,1));
 	songTitles[strlen(songTitles)-1] = '\0'; 
 }
 
