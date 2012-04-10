@@ -73,6 +73,28 @@ bool NetworkingComponent::processUdp(SocketInformation *sockInfo, WSABUF *data)
 	return true;
 }
 
+bool NetworkingComponent::processUdpMic(SocketInformation *sockInfo, WSABUF *data)
+{
+	static DWORD flags = 0;
+
+	EnterCriticalSection(&udpMicMutex_);
+	udpMicDataQueue_.push(*data);
+	ReleaseSemaphore(udpMicQueueSem_, 1, NULL);
+	LeaveCriticalSection(&udpMicMutex_);
+
+	if (WSARecvFrom(sockInfo->socket, &(sockInfo->dataBuf), 1, NULL, &flags, 
+		(struct sockaddr *) &(sockInfo->from), &(sockInfo->fromLen), &(sockInfo->overlapped), NULL) == SOCKET_ERROR)
+	{
+		if (WSAGetLastError() != WSA_IO_PENDING)
+		{
+			MessageBox(NULL, "WSARecv() failed.", "Error", MB_ICONERROR);
+			return false;
+		}
+	}
+
+	return true;
+}
+
 DWORD WINAPI NetworkingComponent::WorkerThread()
 {
 	BOOL completionStatus;
@@ -105,6 +127,10 @@ DWORD WINAPI NetworkingComponent::WorkerThread()
 
 			case IOCP_UDP_READ:
 				processUdp(sockInfo, &data);
+				break;
+
+			case IOCP_UDPSOCK_READ:
+				processUdpMic(sockInfo, &data);
 				break;
 			}
 		} 
@@ -157,6 +183,12 @@ bool NetworkingComponent::initializeUdp()
 	if (setsockopt(udpSocket_, SOL_SOCKET, SO_REUSEADDR, (const char *) &reuse, sizeof(reuse)) == SOCKET_ERROR)
 		return false;
 
+	if ((udpMicSocket_ = WSASocket(AF_INET, SOCK_DGRAM, 0, NULL, 0, WSA_FLAG_OVERLAPPED)) == INVALID_SOCKET)
+		return false;
+
+	if (setsockopt(udpMicSocket_, SOL_SOCKET, SO_REUSEADDR, (const char *) &reuse, sizeof(reuse)) == SOCKET_ERROR)
+		return false;
+
 	struct sockaddr_in addrInfo;
 	memset(&addrInfo, 0, sizeof(addrInfo));
 	addrInfo.sin_family = AF_INET;
@@ -164,6 +196,10 @@ bool NetworkingComponent::initializeUdp()
 	addrInfo.sin_port = htons(MULTICASTPORT);
 
 	if (bind(udpSocket_, (sockaddr *) &addrInfo, sizeof(addrInfo)) == SOCKET_ERROR)
+		return false;
+
+	addrInfo.sin_port = htons(UDPPORT);
+	if (bind(udpMicSocket_, (sockaddr *) &addrInfo, sizeof(addrInfo)) == SOCKET_ERROR)
 		return false;
 
 	// If this is client, associate socket with completion port so
@@ -176,7 +212,13 @@ bool NetworkingComponent::initializeUdp()
 		if (setsockopt(udpSocket_, SOL_SOCKET, SO_RCVBUF, (char *) &len, sizeof(len)) != 0)
 			return false;
 
+		if (setsockopt(udpMicSocket_, SOL_SOCKET, SO_RCVBUF, (char *) &len, sizeof(len)) != 0)
+			return false;
+
 		if (!activateIoCp(udpSocket_, IOCP_UDP_READ))
+			return false;
+
+		if (!activateIoCp(udpMicSocket_, IOCP_UDPSOCK_READ))
 			return false;
 	}
 
@@ -225,8 +267,11 @@ bool NetworkingComponent::initialize()
 
 	tcpQueueSem_ = CreateSemaphore(NULL, 0, 50, NULL);
 	udpQueueSem_ = CreateSemaphore(NULL, 0, 50, NULL);
+	udpQueueSem_ = CreateSemaphore(NULL, 0, 50, NULL);
+
 	InitializeCriticalSection(&tcpMutex_);
 	InitializeCriticalSection(&udpMutex_);
+	InitializeCriticalSection(&udpMicMutex_);
 
 	if (!initializeUdp())
 		return false;
@@ -262,6 +307,35 @@ int NetworkingComponent::sendMulticast(const char *buffer, size_t bufSize)
 	dstAddr.sin_port = htons(MULTICASTPORT);
 
 	return sendto(udpSocket_, buffer, bufSize, 0, (struct sockaddr *) &dstAddr, sizeof(dstAddr));
+}
+
+int NetworkingComponent::sendUDP(SOCKET sock, const char *buffer, size_t bufSize, const std::string& ipAddress, unsigned short port)
+{
+	struct sockaddr_in dstAddr;
+	dstAddr.sin_family = AF_INET;
+	dstAddr.sin_addr.s_addr = inet_addr(ipAddress.c_str());
+	dstAddr.sin_port = htons(port);
+
+	return sendto(udpSocket_, buffer, bufSize, 0, (struct sockaddr *) &dstAddr, sizeof(dstAddr));
+}
+
+int NetworkingComponent::receiveUDP(WSABUF *buffer)
+{
+	WSABUF data;
+
+	WaitForSingleObject(udpMicQueueSem_, INFINITE);
+	EnterCriticalSection(&udpMicMutex_);
+
+	if (!udpMicDataQueue_.empty())
+	{
+		data = udpMicDataQueue_.front();	
+		buffer->buf = data.buf;
+		buffer->len = data.len;
+		udpMicDataQueue_.pop();
+	}
+
+	LeaveCriticalSection(&udpMicMutex_);
+	return data.len;
 }
 
 int NetworkingComponent::connectToServer(const std::string& ipAddress, unsigned short port)

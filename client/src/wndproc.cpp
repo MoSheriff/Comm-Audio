@@ -14,6 +14,7 @@ BOOL CALLBACK DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
     std::list<std::string>::iterator it;
     char buffer[4096];
     char data[4096];
+	int selected;
 
     switch(message)
     {
@@ -40,7 +41,7 @@ BOOL CALLBACK DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
             break;
 
         case IDC_BTNSELECT:
-            int selected = SendDlgItemMessage(hDlg, IDC_LSTSONGLIST, LB_GETCURSEL, 0, 0);
+            selected = SendDlgItemMessage(hDlg, IDC_LSTSONGLIST, LB_GETCURSEL, 0, 0);
 
             if (selected == LB_ERR)
                 MessageBox(hDlg, "You need to select a song first.", "Error", MB_ICONINFORMATION);
