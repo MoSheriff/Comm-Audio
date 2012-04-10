@@ -34,8 +34,9 @@ public:
 	int receiveData(WSABUF *buffer);
 	SOCKET waitForClient(std::string& ipAddress);
 	SOCKET waitForClient();
-	int sendUDP(SOCKET sock, const char *buffer, size_t bufSize, const std::string& ipAddress, unsigned short port);
+	int sendUDP(const char *buffer, size_t bufSize, const std::string& ipAddress);
 	int receiveUDP(WSABUF *buffer);
+	void endTCPConnection(SOCKET sock);
 
 private:
 	static const size_t IOCP_TCP_READ = 0;
@@ -54,6 +55,7 @@ private:
 	} SocketInformation;
 
 	SOCKET udpSocket_;
+	SOCKET udpMicSendSocket_;
 	SOCKET udpMicSocket_;
 	SOCKET tcpSocket_;
 	HANDLE hIoCp_;

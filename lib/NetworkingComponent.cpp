@@ -22,11 +22,16 @@ NetworkingComponent::~NetworkingComponent()
 {
 	leaveMulticastGroup();
 	closesocket(udpSocket_);
+	closesocket(udpMicSocket_);
+	if (appType_ == CLIENT)
+		closesocket(udpMicSendSocket_);	
 	CloseHandle(hIoCp_);
 	CloseHandle(tcpQueueSem_);
 	CloseHandle(udpQueueSem_);
+	CloseHandle(udpMicQueueSem_);
 	DeleteCriticalSection(&tcpMutex_);
 	DeleteCriticalSection(&udpMutex_);
+	DeleteCriticalSection(&udpMicMutex_);
 }
 
 bool NetworkingComponent::processTcp(SocketInformation *sockInfo, WSABUF *data)
@@ -38,13 +43,16 @@ bool NetworkingComponent::processTcp(SocketInformation *sockInfo, WSABUF *data)
 	ReleaseSemaphore(tcpQueueSem_, 1, NULL);
 	LeaveCriticalSection(&tcpMutex_);
 
-	if (WSARecv(sockInfo->socket, &(sockInfo->dataBuf), 1, NULL, &flags, 
-		&(sockInfo->overlapped), NULL) == SOCKET_ERROR)
+	if (data->len != 0)
 	{
-		if (WSAGetLastError() != WSA_IO_PENDING)
+		if (WSARecv(sockInfo->socket, &(sockInfo->dataBuf), 1, NULL, &flags, 
+			&(sockInfo->overlapped), NULL) == SOCKET_ERROR)
 		{
-			MessageBox(NULL, "WSARecv() failed.", "Error", MB_ICONERROR);
-			return false;
+			if (WSAGetLastError() != WSA_IO_PENDING)
+			{
+				MessageBox(NULL, "WSARecv() failed.", "Error", MB_ICONERROR);
+				return false;
+			}
 		}
 	}
 
@@ -69,7 +77,6 @@ bool NetworkingComponent::processUdp(SocketInformation *sockInfo, WSABUF *data)
 			return false;
 		}
 	}
-
 	return true;
 }
 
@@ -115,9 +122,18 @@ DWORD WINAPI NetworkingComponent::WorkerThread()
 			sockInfo = (SocketInformation *) overlap;
 
 			WSABUF data;
-			data.buf = new char[bytesTransferred + 1];
+			data.buf = new char[bytesTransferred + 1];	
+			if (bytesTransferred == 0)	
+			{
+				closesocket(sockInfo->socket);
+				delete sockInfo;
+			}
+			else
+			{
+			    memcpy(data.buf, sockInfo->dataBuf.buf, bytesTransferred);
+			}
+
 			data.len = bytesTransferred;
-			memcpy(data.buf, sockInfo->dataBuf.buf, bytesTransferred);
 
 			switch(completionKey)
 			{
@@ -208,6 +224,9 @@ bool NetworkingComponent::initializeUdp()
 	// receive any udp data in server
 	if (appType_ == CLIENT)
 	{
+		if ((udpMicSendSocket_ = WSASocket(AF_INET, SOCK_DGRAM, 0, NULL, 0, WSA_FLAG_OVERLAPPED)) == INVALID_SOCKET)
+			return false;
+
 		size_t len = UDPRECVBUF;
 		if (setsockopt(udpSocket_, SOL_SOCKET, SO_RCVBUF, (char *) &len, sizeof(len)) != 0)
 			return false;
@@ -267,7 +286,7 @@ bool NetworkingComponent::initialize()
 
 	tcpQueueSem_ = CreateSemaphore(NULL, 0, 50, NULL);
 	udpQueueSem_ = CreateSemaphore(NULL, 0, 50, NULL);
-	udpQueueSem_ = CreateSemaphore(NULL, 0, 50, NULL);
+	udpMicQueueSem_ = CreateSemaphore(NULL, 0, 50, NULL);
 
 	InitializeCriticalSection(&tcpMutex_);
 	InitializeCriticalSection(&udpMutex_);
@@ -309,14 +328,14 @@ int NetworkingComponent::sendMulticast(const char *buffer, size_t bufSize)
 	return sendto(udpSocket_, buffer, bufSize, 0, (struct sockaddr *) &dstAddr, sizeof(dstAddr));
 }
 
-int NetworkingComponent::sendUDP(SOCKET sock, const char *buffer, size_t bufSize, const std::string& ipAddress, unsigned short port)
+int NetworkingComponent::sendUDP(const char *buffer, size_t bufSize, const std::string& ipAddress)
 {
 	struct sockaddr_in dstAddr;
 	dstAddr.sin_family = AF_INET;
 	dstAddr.sin_addr.s_addr = inet_addr(ipAddress.c_str());
-	dstAddr.sin_port = htons(port);
+	dstAddr.sin_port = htons(UDPPORT);
 
-	return sendto(udpSocket_, buffer, bufSize, 0, (struct sockaddr *) &dstAddr, sizeof(dstAddr));
+	return sendto(udpMicSendSocket_, buffer, bufSize, 0, (struct sockaddr *) &dstAddr, sizeof(dstAddr));
 }
 
 int NetworkingComponent::receiveUDP(WSABUF *buffer)
@@ -345,6 +364,9 @@ int NetworkingComponent::connectToServer(const std::string& ipAddress, unsigned 
 	server.sin_family = AF_INET;
 	server.sin_addr.s_addr = inet_addr(ipAddress.c_str());
 	server.sin_port = htons(port);
+
+	if ((tcpSocket_ = WSASocket(AF_INET, SOCK_STREAM, 0, NULL, 0, WSA_FLAG_OVERLAPPED)) == INVALID_SOCKET)
+		return false;
 
 	int ret = connect(tcpSocket_, (sockaddr *) &server, sizeof(server));
 
@@ -419,4 +441,10 @@ SOCKET NetworkingComponent::waitForClient(std::string& ipAddress)
 		return INVALID_SOCKET;
 
 	return client;
+}
+
+void NetworkingComponent::endTCPConnection(SOCKET sock)
+{
+	shutdown(sock, SD_BOTH);
+	closesocket(sock);
 }
