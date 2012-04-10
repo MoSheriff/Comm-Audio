@@ -7,12 +7,14 @@
 #include <list>
 #include <process.h>
 #include "NetworkingComponent.h"
-#include "timer.h"
 using namespace std;
 
 #define songOneLocation string("Shine On You Crazy Diamond.wav")
 #define songTwoLocation string("Welcome To The Machine.wav")
 #define songThreeLocation string("Wish You Were Here.wav")
+#define songFourLocation string("Golden Slumbers.wav")
+#define songFiveLocation string("Step Right Up.wav")
+#define songSixLocation string("Weasel Stomping Day.wav")
 #define READ_BUFFER_SIZE 1024
 #define NUM_OF_SONGS 3
 
@@ -30,9 +32,15 @@ map<string,string> songList;
 string songOne = "Shine On You Crazy Diamond";
 string songTwo = "Welcome To The Machine";
 string songThree = "Wish You Were Here";
+string songFour = "Golden Slumbers";
+string songFive = "Step Right Up";
+string songSix = "Weasel Stomping Day";
 string songOneLoc = songOneLocation;
 string songTwoLoc = songTwoLocation;
 string songThreeLoc = songThreeLocation;
+string songFourLoc = songFourLocation;
+string songFiveLoc = songFiveLocation;
+string songSixLoc = songSixLocation;
 list<string> playlist;
 NetworkingComponent nc(NetworkingComponent::SERVER);
 
