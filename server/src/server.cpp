@@ -11,57 +11,86 @@ int main(int argc, char **argv) {
 	}
 }
 
-void SendSongListProc(void *ID) {
-	while(true) {
-		//SOCKET clientSock = nc.waitForClient(clientIP);
-		// clientList.push_back(clientIP); // need to get the IP from the NetworkingComponent somehow
-		//nc.sendData(clientSock, songTitles, strlen(songTitles));
-	}
-}
-
-void IncomingConnectionProc(void *ID) {
+void IncomingConnectionProc(void* ID) {
 	char recieveBufData[50];
+	char rcvBuf[50];
+	DWORD bytesRead = 1;
 	int recieveCheck;
+	SOCKET clientSock;
 	string clientIP;
 	while(true) {
-		SOCKET clientSock = nc.waitForClient(clientIP);
-		recv(clientSock, recieveBuffer.buf, recieveBuffer.len,0);
-		if(recieveCheck != 0 && recieveCheck != SOCKET_ERROR) { 
-			recieveBuffer.buf[recieveBuffer.len] = '\0';
-			switch(recieveBuffer.buf[0]) {
+		clientSock = nc.waitForClient(clientIP);
+		recieveCheck = recvfrom(clientSock, rcvBuf, 50, 0,0,0);
+		if(clientList.empty()) {
+			clientList.push_back(clientIP);
+		}
+		for(it = clientList.begin(); it != clientList.end(); it++) {
+			if(*it == clientIP) {
+				it = clientList.begin();
+				break;
+			}
+		}
+		if(it != clientList.begin()) { 
+			clientList.push_back(clientIP);
+		}
+		if(recieveCheck != 0) { 
+			rcvBuf[recieveCheck] = '\0';
+			switch(rcvBuf[0]) {
 				case '0':
-					sscanf(recieveBuffer.buf, "0:%50c", recieveBufData);
-					recieveBufData[recieveBuffer.len-2] = '\0';
+					sscanf(rcvBuf, "0:%50c", recieveBufData);
+					recieveBufData[recieveCheck-2] = '\0';
 					playlist.push_back(songList[recieveBufData]);
-					break;
+					nc.endTCPConnection(clientSock);
+					continue;
 				case '1':
-					//Download
-					DWORD bytesRead = 1;
-					sscanf(recieveBuffer.buf, "0:%50c", recieveBufData);
-					recieveBufData[recieveBuffer.len-2] = '\0';
-					downloadFileName = recieveBufData;
-					sendFile = CreateFile(downloadFileName,GENERIC_READ,0,0,OPEN_EXISTING,0,0);
-					while (bytesRead != 0) {
-						ReadFile(wavFile, fileBuf, READ_BUFFER_SIZE, &bytesRead,0);
-						nc.sendData(clientSock, fileBuf, bytesRead);
-					}
-					break;
+					sscanf(rcvBuf, "1:%50c", recieveBufData);
+					recieveBufData[recieveCheck-2] = '\0';
+					downloadFileName = stringToCharStar(songList[recieveBufData],0);
+					CreateThread(0,0,(LPTHREAD_START_ROUTINE)SendFileProc,(LPVOID)clientSock,0,0);
+					continue;
 				case '2':
-					//Client list
-
-					break;
+					memset(sendClientList, '\0', sizeof(sendClientList));
+					for(it = clientList.begin(); it != clientList.end(); it++) {
+						strcat(sendClientList, stringToCharStar(*it,1));
+					}
+					it = clientList.begin();
+					sendClientList[strlen(sendClientList)-1] = '\0';
+					nc.sendData(clientSock, sendClientList, strlen(sendClientList));
+					nc.endTCPConnection(clientSock);
+					continue;
 				case '3':
-					skipVotes++;
-					break;
+					skip = true;
+					nc.endTCPConnection(clientSock);
+					continue;
 				case '4':
-					// Song list
 					nc.sendData(clientSock, songTitles, strlen(songTitles));
-					break;
+					nc.endTCPConnection(clientSock);
+					continue;
+				case '5':
+					clientList.remove(clientIP);
+					nc.endTCPConnection(clientSock);
+					continue;
 				default:
-					break;
+					nc.endTCPConnection(clientSock);
+					continue;
 			}
 		}
 	}
+}
+
+void SendFileProc(SOCKET sock) {
+	DWORD bytesRead = 1;
+	HANDLE sendFile;
+	sendFile = CreateFile(downloadFileName,GENERIC_READ,0,0,OPEN_EXISTING,0,0);
+	while (bytesRead != 0) {
+		ReadFile(sendFile, sendFileBuf, READ_BUFFER_SIZE, &bytesRead,0);
+		if(nc.sendData(sock, sendFileBuf, bytesRead) == -1) {
+			printf("Send failed.");	
+		};
+	}
+	CloseHandle(sendFile);
+	bytesRead = 1;
+	nc.endTCPConnection(sock);
 }
 
 
@@ -77,8 +106,8 @@ void sendDataToClients() {
 	size_t sendBufferSize = READ_BUFFER_SIZE;
 	test = ((double)clientList.size())/2;
 	while(true) {
-		if(skipVotes >= test) {
-			skipVotes = 0;
+		if(skip == true) {
+			skip = false;
 			break;
 		}
 		ReadFile(wavFile, fileBuf, READ_BUFFER_SIZE, &bytesRead,0);
@@ -86,7 +115,6 @@ void sendDataToClients() {
 			break;
 		}
 		nc.sendMulticast(fileBuf, bytesRead);
-		printf("Data Sent.");
 		Sleep(5);
 	}
 	CloseHandle(wavFile);
