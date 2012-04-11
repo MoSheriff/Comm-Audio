@@ -245,7 +245,7 @@ int AudioOutput::connect(char *host, unsigned short socket)
 void AudioOutput::setNc(NetworkingComponent *nc)
 {
     globals->nc = nc;
-    globals->nc->initialize();
+    //globals->nc->initialize();
 }
 
 
@@ -258,7 +258,7 @@ void AudioOutput::initialize()
     globals->freeBlocks = BLOCK_COUNT;
     globals->currentBlock= 0;
     InitializeCriticalSection(&(globals->countGuard));
-    globals->nc = new NetworkingComponent(NetworkingComponent::CLIENT);
+    //globals->nc = new NetworkingComponent(NetworkingComponent::CLIENT);
 }
 
 

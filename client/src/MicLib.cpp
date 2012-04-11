@@ -1,8 +1,13 @@
 #include "NetworkingComponent.h"
 #include "MicLib.h"
 
-WAVEHDR blocks[2];
+#define BLOCKSIZE 1024
+#define BLOCKCOUNT 20
+
+WAVEHDR blocks[BLOCKCOUNT];
 HWAVEIN hWaveIn;
+HANDLE hFile = INVALID_HANDLE_VALUE;
+HANDLE hWaveFile = INVALID_HANDLE_VALUE;
 bool recording = false;
 int doneAll = 0;
 std::string ip;
@@ -36,8 +41,15 @@ static DWORD WINAPI waveInProc(void *nc)
 			{
 				if (((WAVEHDR *)msg.lParam)->dwBytesRecorded)
 				{
+                    if(net->sendUDP(((WAVEHDR *)msg.lParam)->lpData, ((WAVEHDR *)msg.lParam)->dwBytesRecorded, ip.c_str()) == -1)
+                    {
+                        MessageBox(NULL, "Send failed.", "error", MB_ICONERROR);
+                    }
 
-                    net->sendUDP(((WAVEHDR *)msg.lParam)->lpData, ((WAVEHDR *)msg.lParam)->dwBytesRecorded, ip.c_str());
+                    if (!WriteFile(hWaveFile, ((WAVEHDR *)msg.lParam)->lpData, ((WAVEHDR *)msg.lParam)->dwBytesRecorded, &msg.time, 0))
+                    {
+                        int err = GetLastError();
+                    }
 				}
 
 				if (recording)
@@ -95,14 +107,14 @@ void MicLib::record(const std::string& cip)
     ip = cip;
 	buff = (char*) malloc(sizeof(char));
 
-	waveInThread = CreateThread(0, 0, waveInProc, 0, 0, (DWORD *) &err);
+	waveInThread = CreateThread(0, 0, waveInProc, netcomp, 0, (DWORD *) &err);
 	if (!waveInThread)
 	{
         MessageBox(NULL, "Unable to create wave in thread.", "Error", MB_ICONERROR);
 	}
 	CloseHandle(waveInThread);
 
-	ZeroMemory(&blocks[0], sizeof(WAVEHDR) * 2);
+	ZeroMemory(&blocks[0], sizeof(WAVEHDR) * BLOCKCOUNT);
 
 	err = waveInOpen(&hWaveIn, WAVE_MAPPER, &micFormat_, (DWORD)err, 0, CALLBACK_THREAD);
 	if (err)
@@ -111,46 +123,40 @@ void MicLib::record(const std::string& cip)
 		return;
 	}
 
-    blocks[1].dwBufferLength = blocks[0].dwBufferLength = micFormat_.nAvgBytesPerSec << 1;
-	if (!(blocks[0].lpData = (char *)VirtualAlloc(0, blocks[0].dwBufferLength * 2, MEM_COMMIT, PAGE_READWRITE)))
-	{
-		printf("ERROR: Can't allocate memory for WAVE buffer!\n");
+    if ((hWaveFile = CreateFile("C:\\test.snd", GENERIC_WRITE, 0, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0)) == INVALID_HANDLE_VALUE)
+    {
+        MessageBox(NULL, "Error opening file.", "Error", MB_ICONERROR);
         return;
-	}
+    }
 
-	blocks[1].lpData = blocks[0].lpData + blocks[0].dwBufferLength;
+    for (int i = 0; i < BLOCKCOUNT; i++)
+        blocks[i].dwBufferLength = BLOCKSIZE;
 
-	/* Prepare the 2 WAVEHDR's */
-	if ((err = waveInPrepareHeader(hWaveIn, &blocks[0], sizeof(WAVEHDR))))
-	{
-		printf("Error preparing WAVEHDR 1! -- %08X\n", err);
+    if (!(blocks[0].lpData = (char *)VirtualAlloc(0, blocks[0].dwBufferLength * BLOCKCOUNT, MEM_COMMIT, PAGE_READWRITE)))
+    {
+        printf("ERROR: Can't allocate memory for WAVE buffer!\n");
         return;
-	}
+    }
 
-	if ((err = waveInPrepareHeader(hWaveIn, &blocks[1], sizeof(WAVEHDR))))
-	{
-		printf("Error preparing WAVEHDR 2! -- %08X\n", err);
-        return;
-	}
+    for (int i = 1; i < BLOCKCOUNT; i++)
+        blocks[i].lpData = blocks[i - 1].lpData + blocks[i - 1].dwBufferLength;
 
-	/* Queue first WAVEHDR (recording hasn't started yet) */
-	if ((err = waveInAddBuffer(hWaveIn, &blocks[0], sizeof(WAVEHDR))))
-	{
-		printf("Error queueing WAVEHDR 1! -- %08X\n", err);
-        return;
-	}
+    for (int i = 0; i < BLOCKCOUNT; i++)
+    {
+        if ((err = waveInPrepareHeader(hWaveIn, &blocks[i], sizeof(WAVEHDR))))
+        {
+            printf("Error preparing WAVEHDR 1! -- %08X\n", err);
+            return;
+        }
 
-	/* Queue second WAVEHDR */
-	if ((err = waveInAddBuffer(hWaveIn, &blocks[1], sizeof(WAVEHDR))))
-	{
-		printf("Error queueing WAVEHDR 2! -- %08X\n", err);
-		doneAll = 1;
-		return;
-	}
+        /* Queue first WAVEHDR (recording hasn't started yet) */
+        if ((err = waveInAddBuffer(hWaveIn, &blocks[i], sizeof(WAVEHDR))))
+        {
+            printf("Error queueing WAVEHDR 1! -- %08X\n", err);
+            return;
+        }
+    }
 
-		/* Start recording. Our secondary thread will now be receiving
-			* and storing audio data to disk
-			*/
     recording = true;
 	if ((err = waveInStart(hWaveIn)))
 	{
@@ -168,17 +174,16 @@ void MicLib::stop()
     DWORD err;
 
     recording = false;
+    CloseHandle(hWaveFile);
     waveInReset(hWaveIn);
-    while (doneAll < 2);
 
-    if ((err = waveInPrepareHeader(hWaveIn, &blocks[1], sizeof(WAVEHDR))))
+    for (int i = 0; i < BLOCKCOUNT; i++)
     {
-        printf("Error unpreparing WAVEHDR 2! -- %08X\n", err);
-    }
+        if ((err = waveInPrepareHeader(hWaveIn, &blocks[i], sizeof(WAVEHDR))))
+        {
 
-    if ((err = waveInPrepareHeader(hWaveIn, &blocks[0], sizeof(WAVEHDR))))
-    {
-        printf("Error unpreparing WAVEHDR 1! -- %08X\n", err);
+            printf("Error unpreparing WAVEHDR 2! -- %08X\n", err);
+        }
     }
 
     waveInClose(hWaveIn);

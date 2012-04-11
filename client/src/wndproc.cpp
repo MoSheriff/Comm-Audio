@@ -74,6 +74,7 @@ BOOL CALLBACK DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
         switch(LOWORD(wParam))
         {
         case IDC_BTNLISTEN:
+            output->micChat();
             output->playAudio();
             break;
 
