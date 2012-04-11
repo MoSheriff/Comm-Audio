@@ -437,8 +437,8 @@ SOCKET NetworkingComponent::waitForClient(std::string& ipAddress)
 	SOCKET client = accept(tcpSocket_, (sockaddr *) &clientInfo, &clientSize);
 	ipAddress = std::string(inet_ntoa(clientInfo.sin_addr));
 
-	if (!activateIoCp(client, IOCP_TCP_READ))
-		return INVALID_SOCKET;
+	//if (!activateIoCp(client, IOCP_TCP_READ))
+	//	return INVALID_SOCKET;
 
 	return client;
 }
