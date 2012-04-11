@@ -195,6 +195,9 @@ bool NetworkingComponent::initializeUdp()
 	if ((udpSocket_ = WSASocket(AF_INET, SOCK_DGRAM, 0, NULL, 0, WSA_FLAG_OVERLAPPED)) == INVALID_SOCKET)
 		return false;
 
+    if ((udpMicSendSocket_ = WSASocket(AF_INET, SOCK_DGRAM, 0, NULL, 0, WSA_FLAG_OVERLAPPED)) == INVALID_SOCKET)
+        return false;
+
 	BOOL reuse = TRUE;
 	if (setsockopt(udpSocket_, SOL_SOCKET, SO_REUSEADDR, (const char *) &reuse, sizeof(reuse)) == SOCKET_ERROR)
 		return false;
@@ -224,9 +227,6 @@ bool NetworkingComponent::initializeUdp()
 	// receive any udp data in server
 	if (appType_ == CLIENT)
 	{
-		if ((udpMicSendSocket_ = WSASocket(AF_INET, SOCK_DGRAM, 0, NULL, 0, WSA_FLAG_OVERLAPPED)) == INVALID_SOCKET)
-			return false;
-
 		size_t len = UDPRECVBUF;
 		if (setsockopt(udpSocket_, SOL_SOCKET, SO_RCVBUF, (char *) &len, sizeof(len)) != 0)
 			return false;
