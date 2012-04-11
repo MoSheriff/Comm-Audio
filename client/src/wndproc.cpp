@@ -80,6 +80,7 @@ BOOL CALLBACK DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
         case IDC_BTNCONNECT:
             GetDlgItemText(hDlg, IDC_TXTIP, buffer, sizeof(buffer));
             output->connect(buffer, NetworkingComponent::LISTENPORT);
+            nc->sendData("4:songlist", 10);
             output->micChat();
             titles = getTitles(nc);
 
@@ -106,6 +107,8 @@ BOOL CALLBACK DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
             else
                 sprintf(data, "1:%s", buffer);
 
+            GetDlgItemText(hDlg, IDC_TXTIP, buffer, sizeof(buffer));
+            nc->connectToServer(std::string(buffer), NetworkingComponent::LISTENPORT);
             nc->sendData(data, strlen(data));
 
             if (LOWORD(wParam) == IDC_BTNDOWNLOAD)
@@ -141,8 +144,11 @@ BOOL CALLBACK DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
             break;
 
         case IDC_BTNSKIP:
+            GetDlgItemText(hDlg, IDC_TXTIP, buffer, sizeof(buffer));
             sprintf(data, "3:%s", "skip");
+            nc->connectToServer(std::string(buffer), NetworkingComponent::LISTENPORT);
             nc->sendData(data, strlen(data));
+            nc->receiveData(&buf);
             break;
 
         case IDC_BTNQUIT:
