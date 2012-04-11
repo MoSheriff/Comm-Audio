@@ -2,9 +2,8 @@
 
 int main(int argc, char **argv) {
 	initializeSonglist();
-	nc.initialize();	
-	CreateThread(0,0,(LPTHREAD_START_ROUTINE)&SendSongListProc,0,0,0);
-	CreateThread(0,0,(LPTHREAD_START_ROUTINE)&IncomingMessageProc,0,0,0);
+	nc.initialize();
+	CreateThread(0,0,(LPTHREAD_START_ROUTINE)&IncomingConnectionProc,0,0,0);
 	while(true) {
 		if(playlist.size() != 0) {
 			openFile();
@@ -12,22 +11,22 @@ int main(int argc, char **argv) {
 	}
 }
 
-void MusicProc(void *ID) {
-}
-
 void SendSongListProc(void *ID) {
-	string clientIP;
 	while(true) {
-		SOCKET clientSock = nc.waitForClient(clientIP);
-		clientList.push_back(clientIP); // need to get the IP from the NetworkingComponent somehow
-		nc.sendData(clientSock, songTitles, strlen(songTitles));
+		//SOCKET clientSock = nc.waitForClient(clientIP);
+		// clientList.push_back(clientIP); // need to get the IP from the NetworkingComponent somehow
+		//nc.sendData(clientSock, songTitles, strlen(songTitles));
 	}
 }
 
-void IncomingMessageProc(void *ID) {
+void IncomingConnectionProc(void *ID) {
 	char recieveBufData[50];
+	int recieveCheck;
+	string clientIP;
 	while(true) {
-		if(nc.receiveData(&recieveBuffer) != 0) { 
+		SOCKET clientSock = nc.waitForClient(clientIP);
+		recv(clientSock, recieveBuffer.buf, recieveBuffer.len,0);
+		if(recieveCheck != 0 && recieveCheck != SOCKET_ERROR) { 
 			recieveBuffer.buf[recieveBuffer.len] = '\0';
 			switch(recieveBuffer.buf[0]) {
 				case '0':
@@ -36,12 +35,27 @@ void IncomingMessageProc(void *ID) {
 					playlist.push_back(songList[recieveBufData]);
 					break;
 				case '1':
-
+					//Download
+					DWORD bytesRead = 1;
+					sscanf(recieveBuffer.buf, "0:%50c", recieveBufData);
+					recieveBufData[recieveBuffer.len-2] = '\0';
+					downloadFileName = recieveBufData;
+					sendFile = CreateFile(downloadFileName,GENERIC_READ,0,0,OPEN_EXISTING,0,0);
+					while (bytesRead != 0) {
+						ReadFile(wavFile, fileBuf, READ_BUFFER_SIZE, &bytesRead,0);
+						nc.sendData(clientSock, fileBuf, bytesRead);
+					}
 					break;
 				case '2':
+					//Client list
+
 					break;
 				case '3':
 					skipVotes++;
+					break;
+				case '4':
+					// Song list
+					nc.sendData(clientSock, songTitles, strlen(songTitles));
 					break;
 				default:
 					break;
@@ -49,6 +63,7 @@ void IncomingMessageProc(void *ID) {
 		}
 	}
 }
+
 
 void openFile() {
 	fileName = stringToCharStar(playlist.front(),0);
