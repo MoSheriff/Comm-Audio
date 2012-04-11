@@ -28,21 +28,21 @@ using namespace std;
 #define songSeventeenLocation string("Things Ain't What They Used To Be.wav");
 #define songEighteenLocation string("Tom Traubert's Blues (Four Sheets.wav");
 #define songNineteenLocation string("What Is Hip.wav");
-#define songTwentyLocation string("Wildflowers.wav");
+#define songTwentyLocation string("HEYYEYAAEYAAAEYAEYAA.wav");
 #define READ_BUFFER_SIZE 1024
 #define NUM_OF_SONGS 20
 
-//ifstream wavFile;
 char* fileName;
 char* downloadFileName;
 char songTitles[500];
 char fileBuf[READ_BUFFER_SIZE];
+char sendFileBuf[READ_BUFFER_SIZE];
+char sendClientList[500];
 int fileSize;
 int numFileChunks;
-double skipVotes = 0;
+bool skip;
 WSABUF recieveBuffer;
 HANDLE wavFile;
-HANDLE sendFile;
 HANDLE hPlaylistMutex = CreateMutex(NULL,FALSE,NULL);
 HANDLE hSendMusic = CreateMutex(NULL,FALSE,NULL);
 map<string,string> songList;
@@ -95,9 +95,9 @@ string songTwentyLoc    = songTwentyLocation;
 
 NetworkingComponent nc(NetworkingComponent::SERVER);
 
-void getFileSize(char* fileName);
 void initializeSonglist();
 void openFile();
 void sendDataToClients();
 char* stringToCharStar(string temp, int flag);
-void IncomingConnectionProc(void *ID);
+void IncomingConnectionProc(void* ID);
+void SendFileProc(SOCKET sock);
